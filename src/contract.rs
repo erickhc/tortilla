@@ -1,7 +1,7 @@
 use crate::abi::Abi;
 use serde::{Serialize, Deserialize};
 use std::fmt;
-use std::fs::File;
+use std::fs::{File, DirBuilder};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
@@ -37,6 +37,11 @@ impl Contract {
     }
 
     pub fn write_to_dir(&self, dir: &Path) -> io::Result<PathBuf> {
+        if !dir.exists() {
+            DirBuilder::new()
+                .create(dir)?;
+        }
+
         let mut output_file = PathBuf::from(dir);
         output_file.push(&self.name);
         output_file.set_extension("json");
@@ -48,6 +53,11 @@ impl Contract {
     }
 
     pub fn write_to_dir_pretty_print(&self, dir: &Path) -> io::Result<PathBuf> {
+        if !dir.exists() {
+            DirBuilder::new()
+                .create(dir)?;
+        }
+
         let mut output_file = PathBuf::from(dir);
         output_file.push(&self.name);
         output_file.set_extension("json");
