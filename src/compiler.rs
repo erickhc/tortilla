@@ -2,28 +2,25 @@ use crate::contract::Contract;
 use crate::abi::*;
 use std::io::prelude::*;
 use std::process::{Command, Stdio};
-use std::str::FromStr;
 
 pub fn compile(contract: &str) -> std::io::Result<Vec<Contract>> {
-    let mut solc = Command::new("solc")
-        .arg("--abi")
-        .arg("-")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to execute solc");
+    let abis = compile_abi(contract)?;
+    let bins = compile_bin(contract)?;
 
-    {
-        let stdin = solc.stdin.as_mut().expect("Failed to open stdin for solc");
-        stdin.write_all(contract.as_bytes()).expect("Failed to write to stdin for solc");
-    }
+    Ok(abis
+       .into_iter()
+       .zip(bins.into_iter())
+       // Assume the order of the contracts is always the same from solc
+       .map(|((name, abi), (_, bin))| Contract::new(name, abi, bin))
+       .collect()
+   )
+}
 
-    let output = solc.wait_with_output().expect("Failed to read stdout for solc");
-    let output = String::from_utf8_lossy(&output.stdout);
-
-    let mut contracts = Vec::with_capacity(2);
+fn compile_abi(contract: &str) -> std::io::Result<Vec<(String, Vec<Abi>)>> {
+    let output = call_compiler(contract, &["--abi"])?;
+    let mut abis = Vec::with_capacity(2);
     let mut lines = output.lines();
-    // The output of solc 0.5.10 is
+    // The output as of solc 0.5.10 is
     //
     // _Blank line_
     // ======= path/to/contract/file:ContractName =======
@@ -47,45 +44,105 @@ pub fn compile(contract: &str) -> std::io::Result<Vec<Contract>> {
         // Get JSON Abi
         let abi = lines.next().expect("Solc changed the output format");
 
-        contracts.push(Contract::new(
+        abis.push((
             String::from(name),
             Abi::from_json_array(abi).expect("Couldn't parse abi")
         ));
     }
 
-    Ok(contracts)
+    Ok(abis)
+}
+
+fn compile_bin(contract: &str) -> std::io::Result<Vec<(String, String)>> {
+    let output = call_compiler(contract, &["--bin"])?;
+    let mut bins = Vec::with_capacity(2);
+    let mut lines = output.lines();
+    // The output as of solc 0.5.10 is
+    //
+    // _Blank line_
+    // ======= path/to/contract/file:ContractName =======
+    // Binary:
+    // _binary code_
+    loop {
+        // Skip blank line
+        if lines.next().is_none() {
+            break;
+        }
+
+        // Get ContractName
+        let name = lines.next().expect("Solc changed the output format")
+            .trim_matches(|c| c == ' ' || c == '=')
+            .split(':')
+            .last()
+            .expect("Solc changed the output format");
+
+        // Skip Binary: line
+        lines.next().expect("Solc changed the output format");
+        // Get JSON Abi
+        let bin = lines.next().expect("Solc changed the output format");
+
+        bins.push((
+            String::from(name),
+            String::from(bin),
+        ));
+    }
+
+    Ok(bins)
+}
+
+fn call_compiler(contract: &str, args: &[&str]) -> std::io::Result<String> {
+    let mut solc = Command::new("solc");
+
+    for arg in args.iter() {
+        solc.arg(arg);
+    }
+
+    let mut solc = solc.arg("-")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to execute solc");
+
+    {
+        let stdin = solc.stdin.as_mut().expect("Failed to open stdin for solc");
+        stdin.write_all(contract.as_bytes()).expect("Failed to write to stdin for solc");
+    }
+
+    let output = solc.wait_with_output().expect("Failed to read stdout for solc");
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn test_compile_simple_contract() {
         let input = r#"
-            pragma solidity ^0.5.0;
+pragma solidity ^0.5.0;
 
-            contract Migrations {
-              address public owner;
-              uint public last_completed_migration;
+contract Migrations {
+  address public owner;
+  uint public last_completed_migration;
 
-              modifier restricted() {
-                if (msg.sender == owner) _;
-              }
+  modifier restricted() {
+    if (msg.sender == owner) _;
+  }
 
-              constructor() public {
-                owner = msg.sender;
-              }
+  constructor() public {
+    owner = msg.sender;
+  }
 
-              function setCompleted(uint completed) public restricted {
-                last_completed_migration = completed;
-              }
+  function setCompleted(uint completed) public restricted {
+    last_completed_migration = completed;
+  }
 
-              function upgrade(address new_address) public restricted {
-                Migrations upgraded = Migrations(new_address);
-                upgraded.setCompleted(last_completed_migration);
-              }
-            }
-        "#;
+  function upgrade(address new_address) public restricted {
+    Migrations upgraded = Migrations(new_address);
+    upgraded.setCompleted(last_completed_migration);
+  }
+}
+        "#.trim();
 
         let contracts = compile(input).expect("Error compiling contract");
         assert_eq!(contracts.len(), 1);
@@ -158,5 +215,9 @@ mod tests {
         ];
 
         assert_eq!(contract.abi, abi);
+
+        let output_bin = "608060405234801561001057600080fd5b50336000806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055506102b7806100606000396000f3fe608060405234801561001057600080fd5b506004361061004c5760003560e01c80630900f01014610051578063445df0ac146100955780638da5cb5b146100b3578063fdacd576146100fd575b600080fd5b6100936004803603602081101561006757600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff16906020019092919050505061012b565b005b61009d6101f7565b6040518082815260200191505060405180910390f35b6100bb6101fd565b604051808273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200191505060405180910390f35b6101296004803603602081101561011357600080fd5b8101908080359060200190929190505050610222565b005b6000809054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614156101f45760008190508073ffffffffffffffffffffffffffffffffffffffff1663fdacd5766001546040518263ffffffff1660e01b815260040180828152602001915050600060405180830381600087803b1580156101da57600080fd5b505af11580156101ee573d6000803e3d6000fd5b50505050505b50565b60015481565b6000809054906101000a900473ffffffffffffffffffffffffffffffffffffffff1681565b6000809054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673";
+
+        assert!(contract.bin.starts_with(output_bin));
     }
 }
