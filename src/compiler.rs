@@ -2,7 +2,8 @@ use crate::contract::Contract;
 use crate::abi::*;
 use std::io::prelude::*;
 use std::process::{Command, Stdio};
-use std::fs::File;
+use std::path::Path;
+use std::fs::{File, read_dir};
 
 pub fn compile_str(contract: &str) -> std::io::Result<Vec<Contract>> {
     let abis = compile_abi(contract)?;
@@ -22,6 +23,21 @@ pub fn compile_file(file: &mut File) -> std::io::Result<Vec<Contract>> {
     file.read_to_string(&mut contract)?;
 
     compile_str(&contract)
+}
+
+pub fn compile_dir(dir: &Path) -> std::io::Result<Vec<Contract>> {
+    let mut contracts = Vec::new();
+    for entry in read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+
+        let mut file = File::open(path)?;
+        contracts.push(compile_file(&mut file)?);
+    }
+    Ok(contracts.into_iter().flatten().collect())
 }
 
 fn compile_abi(contract: &str) -> std::io::Result<Vec<(String, Vec<Abi>)>> {
@@ -266,6 +282,43 @@ mod tests {
 
         tmpfile.seek(SeekFrom::Start(0)).unwrap();
         let contracts = compile_file(&mut tmpfile)
+            .expect("Couldn't compile contract from file");
+        assert_eq!(contracts.len(), 1);
+        let contract = &contracts[0];
+        cmp_migrations_contract(contract);
+    }
+
+    #[test]
+    fn test_compile_from_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut tmpfile: File = File::create(dir.path().join("Migrations.sol")).unwrap();
+        write!(tmpfile, "{}", r#"
+            pragma solidity ^0.5.0;
+
+            contract Migrations {
+              address public owner;
+              uint public last_completed_migration;
+
+              modifier restricted() {
+                if (msg.sender == owner) _;
+              }
+
+              constructor() public {
+                owner = msg.sender;
+              }
+
+              function setCompleted(uint completed) public restricted {
+                last_completed_migration = completed;
+              }
+
+              function upgrade(address new_address) public restricted {
+                Migrations upgraded = Migrations(new_address);
+                upgraded.setCompleted(last_completed_migration);
+              }
+            }"#.trim()
+        ).unwrap();
+
+        let contracts = compile_dir(dir.path())
             .expect("Couldn't compile contract from file");
         assert_eq!(contracts.len(), 1);
         let contract = &contracts[0];
