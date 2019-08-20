@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 use std::str::FromStr;
+use std::fmt;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -55,6 +56,12 @@ pub struct EventVariable {
 impl Abi {
     pub fn from_json_array(s: &str) -> Result<Vec<Self>, serde_json::error::Error> {
         serde_json::from_str(s)
+    }
+}
+
+impl fmt::Display for Abi {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", serde_json::to_string(self).unwrap())
     }
 }
 
