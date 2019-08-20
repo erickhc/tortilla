@@ -18,7 +18,7 @@ pub fn compile_str(contract: &str) -> std::io::Result<Vec<Contract>> {
    )
 }
 
-pub fn compile_file(file: &mut File) -> std::io::Result<Vec<Contract>> {
+pub fn compile_file(file: &mut impl Read) -> std::io::Result<Vec<Contract>> {
     let mut contract = String::new();
     file.read_to_string(&mut contract)?;
 

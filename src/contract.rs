@@ -5,6 +5,7 @@ use std::fs::{File, DirBuilder};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use ethereum_types::H160;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Contract {
@@ -19,8 +20,7 @@ pub struct Network {
     address: Address,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Address(pub [u8; 20]);
+pub type Address = H160;
 
 impl Contract {
     pub fn new(name: String, abi: Vec<Abi>, bin: String) -> Self {
