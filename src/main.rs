@@ -1,7 +1,6 @@
 use tortilla::compiler;
 use clap::{Arg, App};
 use std::path::Path;
-use std::fs::File;
 
 fn main() -> std::io::Result<()> {
     let matches = App::new("Tortilla")
@@ -22,8 +21,7 @@ fn main() -> std::io::Result<()> {
         }
 
         let contracts = if input.is_file() {
-            let mut file = File::open(input)?;
-            compiler::compile_file(&mut file)?
+            compiler::compile_file(input)?
         } else {
             compiler::compile_dir(&input)?
         };

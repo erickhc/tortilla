@@ -18,14 +18,15 @@ pub fn compile_str(contract: &str) -> std::io::Result<Vec<Contract>> {
    )
 }
 
-pub fn compile_file(file: &mut impl Read) -> std::io::Result<Vec<Contract>> {
+pub fn compile_file(file: impl AsRef<Path>) -> std::io::Result<Vec<Contract>> {
+    let mut file = File::open(file)?;
     let mut contract = String::new();
     file.read_to_string(&mut contract)?;
 
     compile_str(&contract)
 }
 
-pub fn compile_dir(dir: &Path) -> std::io::Result<Vec<Contract>> {
+pub fn compile_dir(dir: impl AsRef<Path>) -> std::io::Result<Vec<Contract>> {
     let mut contracts = Vec::new();
     for entry in read_dir(dir)? {
         let entry = entry?;
@@ -34,8 +35,7 @@ pub fn compile_dir(dir: &Path) -> std::io::Result<Vec<Contract>> {
             continue;
         }
 
-        let mut file = File::open(path)?;
-        contracts.push(compile_file(&mut file)?);
+        contracts.push(compile_file(path)?);
     }
     Ok(contracts.into_iter().flatten().collect())
 }
@@ -140,7 +140,7 @@ fn call_compiler(contract: &str, args: &[&str]) -> std::io::Result<String> {
 mod tests {
     use super::*;
     use std::fs::File;
-    use std::io::{Write, SeekFrom};
+    use std::io::Write;
 
     fn cmp_migrations_contract(contract: &Contract) {
         assert_eq!(contract.name, "Migrations");
@@ -253,7 +253,7 @@ mod tests {
 
     #[test]
     fn test_compile_from_file() {
-        let mut tmpfile: File = tempfile::tempfile().unwrap();
+        let mut tmpfile = tempfile::NamedTempFile::new().unwrap();
         write!(tmpfile, "{}", r#"
             pragma solidity ^0.5.0;
 
@@ -280,8 +280,7 @@ mod tests {
             }"#.trim()
         ).unwrap();
 
-        tmpfile.seek(SeekFrom::Start(0)).unwrap();
-        let contracts = compile_file(&mut tmpfile)
+        let contracts = compile_file(tmpfile.path())
             .expect("Couldn't compile contract from file");
         assert_eq!(contracts.len(), 1);
         let contract = &contracts[0];

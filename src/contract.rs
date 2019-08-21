@@ -83,8 +83,7 @@ mod tests {
 
     #[test]
     fn test_to_dir_pretty_print() {
-        let mut file = File::open("tests/contracts/Migrations.sol").unwrap();
-        let contracts = compiler::compile_file(&mut file).unwrap();
+        let contracts = compiler::compile_file("tests/contracts/Migrations.sol").unwrap();
         let contract = &contracts[0];
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path();
@@ -98,8 +97,7 @@ mod tests {
 
     #[test]
     fn test_to_dir() {
-        let mut file = File::open("tests/contracts/Migrations.sol").unwrap();
-        let contracts = compiler::compile_file(&mut file).unwrap();
+        let contracts = compiler::compile_file("tests/contracts/Migrations.sol").unwrap();
         let contract = &contracts[0];
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path();
