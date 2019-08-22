@@ -1,4 +1,4 @@
-use crate::abi::Abi;
+use crate::abi::{Abi, Function};
 use serde::{Serialize, Deserialize};
 use std::fmt;
 use std::fs::{File, DirBuilder};
@@ -67,6 +67,16 @@ impl Contract {
 
         Ok(output_file)
     }
+
+    pub fn get_methods(&self) -> HashMap<String, Function> {
+        let mut methods = HashMap::new();
+        for el in self.abi.iter() {
+            if let Abi::Function(f) = el {
+                methods.insert(f.name.clone(), f.clone());
+            }
+        }
+        methods
+    }
 }
 
 impl fmt::Display for Contract {
@@ -107,5 +117,19 @@ mod tests {
         output_file.read_to_string(&mut output_content).unwrap();
 
         assert_eq!(output_content, contract.to_string());
+    }
+
+    #[test]
+    fn test_get_methods() {
+        let contracts = compiler::compile_file("tests/contracts/Migrations.sol").unwrap();
+        let contract = &contracts[0];
+
+        let methods = contract.get_methods();
+        assert_eq!(methods.keys().len(), 4);
+
+        assert_eq!(methods.contains_key("owner"), true);
+        assert_eq!(methods.contains_key("last_completed_migration"), true);
+        assert_eq!(methods.contains_key("setCompleted"), true);
+        assert_eq!(methods.contains_key("upgrade"), true);
     }
 }

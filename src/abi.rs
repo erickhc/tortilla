@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize};
 use std::str::FromStr;
 use std::fmt;
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Abi {
     Function(Function),
@@ -10,7 +10,7 @@ pub enum Abi {
     Event(Event),
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct Function {
     pub constant: bool,
@@ -22,7 +22,7 @@ pub struct Function {
     pub r#type: String,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct Constructor {
     pub inputs: Vec<Variable>,
@@ -31,7 +31,7 @@ pub struct Constructor {
     pub r#type: String,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct Event {
     pub anonymous: bool,
@@ -40,13 +40,13 @@ pub struct Event {
     r#type: String,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Variable {
     pub name: String,
     pub r#type: String,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EventVariable {
     pub indexed: bool,
     pub name: String,
