@@ -12,12 +12,20 @@ pub struct Contract {
     pub name: String,
     pub abi: Vec<Abi>,
     pub bin: String,
-    pub networks: HashMap<Address, Network>,
+    pub networks: HashMap<String, Network>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Network {
     address: Address,
+}
+
+impl Network {
+    pub fn new(address: Address) -> Self {
+        Self {
+            address,
+        }
+    }
 }
 
 pub type Address = H160;
@@ -77,6 +85,14 @@ impl Contract {
         }
         methods
     }
+
+    pub fn add_network(&mut self, net_version: &str, address: Address) {
+        self.networks.insert(net_version.to_owned(), Network::new(address));
+    }
+
+    pub fn get_address(&mut self, net_version: &str) -> Option<Address> {
+        self.networks.get(net_version).and_then(|n| Some(n.address))
+    }
 }
 
 impl fmt::Display for Contract {
@@ -131,5 +147,18 @@ mod tests {
         assert_eq!(methods.contains_key("last_completed_migration"), true);
         assert_eq!(methods.contains_key("setCompleted"), true);
         assert_eq!(methods.contains_key("upgrade"), true);
+    }
+
+    #[test]
+    fn test_add_network() {
+        let mut contracts = compiler::compile_file("tests/contracts/Migrations.sol").unwrap();
+        let mut contract = contracts.remove(0);
+
+        contract.add_network("1566487350707", "e78a0f7e598cc8b0bb87894b0f60dd2a88d6a8ab".parse().unwrap());
+
+        assert_eq!(
+            contract.get_address("1566487350707"),
+            Some("e78a0f7e598cc8b0bb87894b0f60dd2a88d6a8ab".parse().unwrap())
+        );
     }
 }
