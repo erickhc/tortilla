@@ -25,6 +25,10 @@ fn main() -> Result<()> {
              .long("output")
              .takes_value(true)
              .help("Sets the output directory"))
+        .arg(Arg::with_name("PRETTY_PRINT")
+             .short("p")
+             .long("pretty")
+             .help("Sets the JSON to be pretty printed"))
         .get_matches();
 
     let inputs = filter_paths(matches.values_of_lossy("INPUTS").unwrap());
@@ -34,10 +38,12 @@ fn main() -> Result<()> {
 
     let should_watch = matches.is_present("WATCH");
     let output = matches.value_of("OUTPUT").unwrap_or("");
+    let pretty_print = matches.is_present("PRETTY_PRINT");
 
     let config = Config::new(&inputs)
         .watch(should_watch)
-        .output(output);
+        .output(output)
+        .pretty_print(pretty_print);
 
     if config.watch {
         watch(&config).unwrap();

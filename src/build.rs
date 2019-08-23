@@ -14,13 +14,17 @@ pub fn build(config: &Config) -> Result<Vec<Contract>> {
 
     if config.output == "-" {
         for c in contracts.iter() {
-            println!("{}", c.pretty_print());
+            if config.pretty_print {
+                println!("{}", c.pretty_print());
+            } else {
+                println!("{}", c);
+            }
         }
     } else {
         print_compiled_contracts(&contracts);
         if config.output != "" {
             for c in contracts.iter() {
-                c.write_to_dir(&config.output)?;
+                c.write_to_dir(&config.output, config.pretty_print)?;
             }
         }
     }

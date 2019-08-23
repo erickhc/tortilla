@@ -44,7 +44,7 @@ impl Contract {
         serde_json::to_string_pretty(self).unwrap()
     }
 
-    pub fn write_to_dir(&self, dir: impl AsRef<Path>) -> io::Result<PathBuf> {
+    pub fn write_to_dir(&self, dir: impl AsRef<Path>, pretty_print: bool) -> io::Result<PathBuf> {
         let dir = dir.as_ref();
         if !dir.exists() {
             DirBuilder::new()
@@ -56,7 +56,11 @@ impl Contract {
         output_file.set_extension("json");
 
         let mut file = File::create(&output_file)?;
-        write!(file, "{}", self)?;
+        if pretty_print {
+            write!(file, "{}", self.pretty_print())?;
+        } else {
+            write!(file, "{}", self)?;
+        }
 
         Ok(output_file)
     }
