@@ -1,35 +1,68 @@
-use tortilla::compiler;
+mod build;
+mod config;
+
 use clap::{Arg, App};
 use std::path::Path;
+use config::Config;
+use build::{build, watch};
+use std::io::Result;
 
-fn main() -> std::io::Result<()> {
+fn main() -> Result<()> {
     let matches = App::new("Tortilla")
         .version("0.1.0")
         .author("Erick Hdez <Erick.HernandezCuriel@mx.bosch.com>")
         .about("Solidity compiler")
-        .arg(Arg::with_name("INPUT")
-             .help("Sets the input file/dir to use")
+        .arg(Arg::with_name("INPUTS")
+             .help("Sets the input files/dirs to use")
              .required(true)
-             .index(1))
+             .multiple(true))
+        .arg(Arg::with_name("WATCH")
+             .short("w")
+             .long("watch")
+             .help("Sets a watcher over the inputs"))
+        .arg(Arg::with_name("OUTPUT")
+             .short("o")
+             .long("output")
+             .takes_value(true)
+             .help("Sets the output directory"))
         .get_matches();
 
-    if let Some(input) = matches.value_of("INPUT") {
-        let input = Path::new(input);
-        if !input.exists() {
-            eprintln!("The provided input file/dir does not exist");
-            std::process::exit(1);
-        }
+    let inputs = filter_paths(matches.values_of_lossy("INPUTS").unwrap());
+    if inputs.len() == 0 {
+        std::process::exit(1);
+    }
 
-        let contracts = if input.is_file() {
-            compiler::compile_file(input)?
-        } else {
-            compiler::compile_dir(&input)?
-        };
+    let should_watch = matches.is_present("WATCH");
+    let output = matches.value_of("OUTPUT").unwrap_or("");
 
-        for c in contracts.into_iter() {
-            println!("{}", c.pretty_print());
-        }
+    let config = Config::new(&inputs)
+        .watch(should_watch)
+        .output(output);
+
+    if config.watch {
+        watch(&config).unwrap();
+    } else {
+        build(&config)?;
     }
 
     Ok(())
+}
+
+fn filter_paths(paths: Vec<impl AsRef<Path>>) -> Vec<impl AsRef<Path>> {
+    let mut invalid = Vec::new();
+    let mut valid = Vec::new();
+
+    for path in paths.into_iter() {
+        if !path.as_ref().exists() {
+            invalid.push(String::from(path.as_ref().to_string_lossy()));
+        } else {
+            valid.push(path);
+        }
+    }
+
+    for p in invalid.into_iter() {
+        eprintln!("{}: No such file or directory", p);
+    }
+
+    valid
 }

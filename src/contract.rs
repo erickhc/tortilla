@@ -44,7 +44,8 @@ impl Contract {
         serde_json::to_string_pretty(self).unwrap()
     }
 
-    pub fn write_to_dir(&self, dir: &Path) -> io::Result<PathBuf> {
+    pub fn write_to_dir(&self, dir: impl AsRef<Path>) -> io::Result<PathBuf> {
+        let dir = dir.as_ref();
         if !dir.exists() {
             DirBuilder::new()
                 .create(dir)?;
@@ -60,7 +61,8 @@ impl Contract {
         Ok(output_file)
     }
 
-    pub fn write_to_dir_pretty_print(&self, dir: &Path) -> io::Result<PathBuf> {
+    pub fn write_to_dir_pretty_print(&self, dir: impl AsRef<Path>) -> io::Result<PathBuf> {
+        let dir = dir.as_ref();
         if !dir.exists() {
             DirBuilder::new()
                 .create(dir)?;
@@ -90,7 +92,7 @@ impl Contract {
         self.networks.insert(net_version.to_owned(), Network::new(address));
     }
 
-    pub fn get_address(&mut self, net_version: &str) -> Option<Address> {
+    pub fn get_address(&self, net_version: &str) -> Option<Address> {
         self.networks.get(net_version).and_then(|n| Some(n.address))
     }
 }

@@ -1,13 +1,22 @@
 use crate::contract::Contract;
 use crate::abi::*;
 use std::io::prelude::*;
+use std::io::Result;
 use std::process::{Command, Stdio};
 use std::path::Path;
-use std::fs::{File, read_dir};
+use std::fs::{read_dir};
 
-pub fn compile_str(contract: &str) -> std::io::Result<Vec<Contract>> {
-    let abis = compile_abi(contract)?;
-    let bins = compile_bin(contract)?;
+enum CompilerInput<'a> {
+    Stdin(&'a str),
+    Path(&'a Path),
+}
+
+pub fn compile_str(contract: &str) -> Result<Vec<Contract>> {
+    let abis = parse_abi(&call_compiler(CompilerInput::Stdin(contract), &["--abi"])?)?;
+    if abis.len() == 0 {
+        return Ok(Vec::new());
+    }
+    let bins = parse_bin(&call_compiler(CompilerInput::Stdin(contract), &["--bin"])?)?;
 
     Ok(abis
        .into_iter()
@@ -18,15 +27,23 @@ pub fn compile_str(contract: &str) -> std::io::Result<Vec<Contract>> {
    )
 }
 
-pub fn compile_file(file: impl AsRef<Path>) -> std::io::Result<Vec<Contract>> {
-    let mut file = File::open(file)?;
-    let mut contract = String::new();
-    file.read_to_string(&mut contract)?;
+pub fn compile_file(file: impl AsRef<Path>) -> Result<Vec<Contract>> {
+    let abis = parse_abi(&call_compiler(CompilerInput::Path(file.as_ref()), &["--abi"])?)?;
+    if abis.len() == 0 {
+        return Ok(Vec::new());
+    }
+    let bins = parse_bin(&call_compiler(CompilerInput::Path(file.as_ref()), &["--bin"])?)?;
 
-    compile_str(&contract)
+    Ok(abis
+       .into_iter()
+       .zip(bins.into_iter())
+       // Assume the order of the contracts is always the same from solc
+       .map(|((name, abi), (_, bin))| Contract::new(name, abi, bin))
+       .collect()
+   )
 }
 
-pub fn compile_dir(dir: impl AsRef<Path>) -> std::io::Result<Vec<Contract>> {
+pub fn compile_dir(dir: impl AsRef<Path>) -> Result<Vec<Contract>> {
     let mut contracts = Vec::new();
     for entry in read_dir(dir)? {
         let entry = entry?;
@@ -40,8 +57,22 @@ pub fn compile_dir(dir: impl AsRef<Path>) -> std::io::Result<Vec<Contract>> {
     Ok(contracts.into_iter().flatten().collect())
 }
 
-fn compile_abi(contract: &str) -> std::io::Result<Vec<(String, Vec<Abi>)>> {
-    let output = call_compiler(contract, &["--abi"])?;
+pub fn compile_path(path: impl AsRef<Path>) -> Result<Vec<Contract>> {
+    if path.as_ref().is_file() {
+        compile_file(path)
+    } else {
+        compile_dir(path)
+    }
+}
+
+pub fn compile_paths(paths: &[impl AsRef<Path>]) -> Result<Vec<Contract>> {
+    paths.into_iter()
+        .map(|p| compile_path(p))
+        .collect::<Result<Vec<Vec<Contract>>>>()
+        .and_then(|c| Ok(c.into_iter().flatten().collect()))
+}
+
+fn parse_abi(output: &str) -> Result<Vec<(String, Vec<Abi>)>> {
     let mut abis = Vec::with_capacity(2);
     let mut lines = output.lines();
     // The output as of solc 0.5.10 is
@@ -77,8 +108,7 @@ fn compile_abi(contract: &str) -> std::io::Result<Vec<(String, Vec<Abi>)>> {
     Ok(abis)
 }
 
-fn compile_bin(contract: &str) -> std::io::Result<Vec<(String, String)>> {
-    let output = call_compiler(contract, &["--bin"])?;
+fn parse_bin(output: &str) -> Result<Vec<(String, String)>> {
     let mut bins = Vec::with_capacity(2);
     let mut lines = output.lines();
     // The output as of solc 0.5.10 is
@@ -114,7 +144,14 @@ fn compile_bin(contract: &str) -> std::io::Result<Vec<(String, String)>> {
     Ok(bins)
 }
 
-fn call_compiler(contract: &str, args: &[&str]) -> std::io::Result<String> {
+fn call_compiler(contract: CompilerInput, args: &[&str]) -> Result<String> {
+    match contract {
+        CompilerInput::Stdin(stdin) => call_compiler_stdin(stdin, args),
+        CompilerInput::Path(path) => call_compiler_path(path, args),
+    }
+}
+
+fn call_compiler_stdin(contract: &str, args: &[&str]) -> Result<String> {
     let mut solc = Command::new("solc");
 
     for arg in args.iter() {
@@ -134,6 +171,24 @@ fn call_compiler(contract: &str, args: &[&str]) -> std::io::Result<String> {
 
     let output = solc.wait_with_output().expect("Failed to read stdout for solc");
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+fn call_compiler_path(path: impl AsRef<Path>, args: &[&str]) -> Result<String> {
+    let mut solc = Command::new("solc");
+
+    for arg in args.iter() {
+        solc.arg(arg);
+    }
+
+    let solc = solc.arg(path.as_ref())
+        .output()
+        .expect("Failed to execute solc");
+
+    if solc.stderr.len() > 0 {
+        eprintln!("{}", String::from_utf8_lossy(&solc.stderr));
+    }
+
+    Ok(String::from(String::from_utf8_lossy(&solc.stdout)))
 }
 
 #[cfg(test)]
