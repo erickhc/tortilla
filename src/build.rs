@@ -1,11 +1,11 @@
 use tortilla::compiler;
 use tortilla::contract::Contract;
-use termion::color;
+use termion::{color, screen, clear, cursor};
 use super::config::Config;
 use notify::{RecommendedWatcher, Watcher, RecursiveMode, DebouncedEvent};
 use std::sync::mpsc::channel;
 use std::time::Duration;
-use std::io::Result;
+use std::io::{Result, stdout, Write};
 use std::path::Path;
 use chrono::prelude::*;
 
@@ -29,6 +29,8 @@ pub fn build(config: &Config) -> Result<Vec<Contract>> {
 }
 
 pub fn watch(config: &Config) -> notify::Result<()> {
+    let _altscreen = screen::AlternateScreen::from(stdout());
+    restart_screen().unwrap();
     build(config).unwrap();
 
     let inputs = &config.inputs;
@@ -44,6 +46,7 @@ pub fn watch(config: &Config) -> notify::Result<()> {
         match rx.recv() {
             Ok(DebouncedEvent::Create(_))
             | Ok(DebouncedEvent::Write(_)) => {
+                restart_screen().unwrap();
                 &build(config).unwrap();
             },
             Ok(DebouncedEvent::NoticeRemove(path)) => {
@@ -57,6 +60,13 @@ pub fn watch(config: &Config) -> notify::Result<()> {
             _ => {},
         }
     }
+}
+
+fn restart_screen() -> Result<()> {
+    print!("{}", clear::All);
+    print!("{}", cursor::Goto(1, 1));
+    stdout().flush()?;
+    Ok(())
 }
 
 fn reattach_watcher_file(watcher: &mut RecommendedWatcher, file: impl AsRef<Path>) -> notify::Result<()> {
