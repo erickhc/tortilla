@@ -104,8 +104,6 @@ fn parse_gas_estimates(lines: &mut Peekable<Lines>) -> GasEstimates {
 
     let mut current = &mut external;
 
-    assert_line!(lines, "external:");
-
     loop {
         {
             let end_of_estimates = lines.peek()
@@ -119,6 +117,8 @@ fn parse_gas_estimates(lines: &mut Peekable<Lines>) -> GasEstimates {
         let line = next_line!(lines).trim();
         if line == "internal:" {
             current = &mut internal;
+            continue;
+        } else if line == "external:" {
             continue;
         }
 
