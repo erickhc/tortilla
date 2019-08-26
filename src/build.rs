@@ -54,8 +54,8 @@ pub fn watch(config: &Config) -> notify::Result<()> {
                 &build(config).unwrap();
             },
             Ok(DebouncedEvent::NoticeRemove(path)) => {
-                if inputs.contains(&path) {
-                    if let Err(err) = reattach_watcher_file(&mut watcher, path) {
+                if inputs.iter().any(|x| path.ends_with(x)) {
+                    if let Err(err) = reattach_watcher_file(&mut watcher, &path) {
                         eprintln!("{}{:?}{}", color::Fg(color::Red), err, color::Fg(color::Reset));
                     }
                 }
