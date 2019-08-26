@@ -1,46 +1,27 @@
 use crate::contract::Contract;
-use crate::abi::*;
-use std::io::prelude::*;
+use crate::solc::*;
 use std::io::Result;
-use std::process::{Command, Stdio};
 use std::path::Path;
 use std::fs::{read_dir};
 
-enum CompilerInput<'a> {
-    Stdin(&'a str),
-    Path(&'a Path),
+macro_rules! solc_to_contracts {
+    ($expr:expr) => {
+        $expr.into_iter()
+            .map(|c| Contract::from_solc_contract(c))
+            .collect();
+    }
 }
 
 pub fn compile_str(contract: &str) -> Result<Vec<Contract>> {
-    let abis = parse_abi(&call_compiler(CompilerInput::Stdin(contract), &["--abi"])?)?;
-    if abis.len() == 0 {
-        return Ok(Vec::new());
-    }
-    let bins = parse_bin(&call_compiler(CompilerInput::Stdin(contract), &["--bin"])?)?;
+    let contracts = compile_contract(CompilerInput::Stdin(contract))?;
 
-    Ok(abis
-       .into_iter()
-       .zip(bins.into_iter())
-       // Assume the order of the contracts is always the same from solc
-       .map(|((name, abi), (_, bin))| Contract::new(name, abi, bin))
-       .collect()
-   )
+    Ok(solc_to_contracts!(contracts))
 }
 
 pub fn compile_file(file: impl AsRef<Path>) -> Result<Vec<Contract>> {
-    let abis = parse_abi(&call_compiler(CompilerInput::Path(file.as_ref()), &["--abi"])?)?;
-    if abis.len() == 0 {
-        return Ok(Vec::new());
-    }
-    let bins = parse_bin(&call_compiler(CompilerInput::Path(file.as_ref()), &["--bin"])?)?;
+    let contracts = compile_contract(CompilerInput::Path(file.as_ref()))?;
 
-    Ok(abis
-       .into_iter()
-       .zip(bins.into_iter())
-       // Assume the order of the contracts is always the same from solc
-       .map(|((name, abi), (_, bin))| Contract::new(name, abi, bin))
-       .collect()
-   )
+    Ok(solc_to_contracts!(contracts))
 }
 
 pub fn compile_dir(dir: impl AsRef<Path>) -> Result<Vec<Contract>> {
@@ -72,128 +53,10 @@ pub fn compile_paths(paths: &[impl AsRef<Path>]) -> Result<Vec<Contract>> {
         .and_then(|c| Ok(c.into_iter().flatten().collect()))
 }
 
-fn parse_abi(output: &str) -> Result<Vec<(String, Vec<Abi>)>> {
-    let mut abis = Vec::with_capacity(2);
-    let mut lines = output.lines();
-    // The output as of solc 0.5.10 is
-    //
-    // _Blank line_
-    // ======= path/to/contract/file:ContractName =======
-    // Contract JSON ABI
-    // _json abi_
-    loop {
-        // Skip blank line
-        if lines.next().is_none() {
-            break;
-        }
-
-        // Get ContractName
-        let name = lines.next().expect("Solc changed the output format")
-            .trim_matches(|c| c == ' ' || c == '=')
-            .split(':')
-            .last()
-            .expect("Solc changed the output format");
-
-        // Skip Contract JSON ABI line
-        lines.next().expect("Solc changed the output format");
-        // Get JSON Abi
-        let abi = lines.next().expect("Solc changed the output format");
-
-        abis.push((
-            String::from(name),
-            Abi::from_json_array(abi).expect("Couldn't parse abi")
-        ));
-    }
-
-    Ok(abis)
-}
-
-fn parse_bin(output: &str) -> Result<Vec<(String, String)>> {
-    let mut bins = Vec::with_capacity(2);
-    let mut lines = output.lines();
-    // The output as of solc 0.5.10 is
-    //
-    // _Blank line_
-    // ======= path/to/contract/file:ContractName =======
-    // Binary:
-    // _binary code_
-    loop {
-        // Skip blank line
-        if lines.next().is_none() {
-            break;
-        }
-
-        // Get ContractName
-        let name = lines.next().expect("Solc changed the output format")
-            .trim_matches(|c| c == ' ' || c == '=')
-            .split(':')
-            .last()
-            .expect("Solc changed the output format");
-
-        // Skip Binary: line
-        lines.next().expect("Solc changed the output format");
-        // Get JSON Abi
-        let bin = lines.next().expect("Solc changed the output format");
-
-        bins.push((
-            String::from(name),
-            String::from(bin),
-        ));
-    }
-
-    Ok(bins)
-}
-
-fn call_compiler(contract: CompilerInput, args: &[&str]) -> Result<String> {
-    match contract {
-        CompilerInput::Stdin(stdin) => call_compiler_stdin(stdin, args),
-        CompilerInput::Path(path) => call_compiler_path(path, args),
-    }
-}
-
-fn call_compiler_stdin(contract: &str, args: &[&str]) -> Result<String> {
-    let mut solc = Command::new("solc");
-
-    for arg in args.iter() {
-        solc.arg(arg);
-    }
-
-    let mut solc = solc.arg("-")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to execute solc");
-
-    {
-        let stdin = solc.stdin.as_mut().expect("Failed to open stdin for solc");
-        stdin.write_all(contract.as_bytes()).expect("Failed to write to stdin for solc");
-    }
-
-    let output = solc.wait_with_output().expect("Failed to read stdout for solc");
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
-}
-
-fn call_compiler_path(path: impl AsRef<Path>, args: &[&str]) -> Result<String> {
-    let mut solc = Command::new("solc");
-
-    for arg in args.iter() {
-        solc.arg(arg);
-    }
-
-    let solc = solc.arg(path.as_ref())
-        .output()
-        .expect("Failed to execute solc");
-
-    if solc.stderr.len() > 0 {
-        eprintln!("{}", String::from_utf8_lossy(&solc.stderr));
-    }
-
-    Ok(String::from(String::from_utf8_lossy(&solc.stdout)))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::abi::*;
     use std::fs::File;
     use std::io::Write;
 
@@ -273,31 +136,7 @@ mod tests {
 
     #[test]
     fn test_compile_simple_contract() {
-        let input = r#"
-        pragma solidity ^0.5.0;
-
-        contract Migrations {
-          address public owner;
-          uint public last_completed_migration;
-
-          modifier restricted() {
-            if (msg.sender == owner) _;
-          }
-
-          constructor() public {
-            owner = msg.sender;
-          }
-
-          function setCompleted(uint completed) public restricted {
-            last_completed_migration = completed;
-          }
-
-          function upgrade(address new_address) public restricted {
-            Migrations upgraded = Migrations(new_address);
-            upgraded.setCompleted(last_completed_migration);
-          }
-        }
-        "#.trim();
+        let input = include_str!("../tests/contracts/Migrations.sol");
 
         let contracts = compile_str(input).expect("Error compiling contract");
         assert_eq!(contracts.len(), 1);
@@ -308,34 +147,7 @@ mod tests {
 
     #[test]
     fn test_compile_from_file() {
-        let mut tmpfile = tempfile::NamedTempFile::new().unwrap();
-        write!(tmpfile, "{}", r#"
-            pragma solidity ^0.5.0;
-
-            contract Migrations {
-              address public owner;
-              uint public last_completed_migration;
-
-              modifier restricted() {
-                if (msg.sender == owner) _;
-              }
-
-              constructor() public {
-                owner = msg.sender;
-              }
-
-              function setCompleted(uint completed) public restricted {
-                last_completed_migration = completed;
-              }
-
-              function upgrade(address new_address) public restricted {
-                Migrations upgraded = Migrations(new_address);
-                upgraded.setCompleted(last_completed_migration);
-              }
-            }"#.trim()
-        ).unwrap();
-
-        let contracts = compile_file(tmpfile.path())
+        let contracts = compile_file("tests/contracts/Migrations.sol")
             .expect("Couldn't compile contract from file");
         assert_eq!(contracts.len(), 1);
         let contract = &contracts[0];
@@ -346,31 +158,7 @@ mod tests {
     fn test_compile_from_dir() {
         let dir = tempfile::tempdir().unwrap();
         let mut tmpfile: File = File::create(dir.path().join("Migrations.sol")).unwrap();
-        write!(tmpfile, "{}", r#"
-            pragma solidity ^0.5.0;
-
-            contract Migrations {
-              address public owner;
-              uint public last_completed_migration;
-
-              modifier restricted() {
-                if (msg.sender == owner) _;
-              }
-
-              constructor() public {
-                owner = msg.sender;
-              }
-
-              function setCompleted(uint completed) public restricted {
-                last_completed_migration = completed;
-              }
-
-              function upgrade(address new_address) public restricted {
-                Migrations upgraded = Migrations(new_address);
-                upgraded.setCompleted(last_completed_migration);
-              }
-            }"#.trim()
-        ).unwrap();
+        write!(tmpfile, "{}", include_str!("../tests/contracts/Migrations.sol")).unwrap();
 
         let contracts = compile_dir(dir.path())
             .expect("Couldn't compile contract from file");

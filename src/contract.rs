@@ -1,4 +1,5 @@
 use crate::abi::{Abi, Function};
+use crate::solc::SolcContract;
 use serde::{Serialize, Deserialize};
 use std::fmt;
 use std::fs::{File, DirBuilder};
@@ -12,6 +13,7 @@ pub struct Contract {
     pub name: String,
     pub abi: Vec<Abi>,
     pub bin: String,
+    pub gas_estimates: Option<HashMap<String, String>>,
     pub networks: HashMap<String, Network>,
 }
 
@@ -37,6 +39,7 @@ impl Contract {
             abi,
             bin,
             networks: HashMap::new(),
+            gas_estimates: None,
         }
     }
 
@@ -99,6 +102,43 @@ impl Contract {
     pub fn get_address(&self, net_version: &str) -> Option<Address> {
         self.networks.get(net_version).and_then(|n| Some(n.address))
     }
+
+    pub fn from_solc_contract(c: SolcContract) -> Self {
+        Self {
+            name: c.name,
+            abi: c.abi,
+            bin: c.bin,
+            gas_estimates: Some(c.gas_estimates),
+            networks: HashMap::new(),
+        }
+    }
+
+    pub fn gas_estimates_to_string(&self) -> String {
+        let mut output = Vec::new();
+
+        if let Some(gas) = &self.gas_estimates {
+            let biggest = gas.keys()
+                .fold(0, |acc, x| std::cmp::max(acc, x.len()));
+
+            macro_rules! pad {
+                ($expr:expr) => {
+                    std::iter::repeat(' ').take(biggest - $expr.len()).collect::<String>();
+                };
+            }
+
+            output.push(format!("{}construction: {}", pad!("construction"), gas["construction"]));
+
+            for (name, value) in gas.iter() {
+                if name == "construction" {
+                    continue;
+                }
+
+                output.push(format!("{}{}: {}", pad!(name), name, value));
+            }
+        }
+
+        output.join("\n")
+    }
 }
 
 impl fmt::Display for Contract {
@@ -134,7 +174,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path();
 
-        let mut output_file = File::open(contract.write_to_dir(path).unwrap()).unwrap();
+        let mut output_file = File::open(contract.write_to_dir(path, false).unwrap()).unwrap();
         let mut output_content = String::new();
         output_file.read_to_string(&mut output_content).unwrap();
 

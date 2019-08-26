@@ -5,6 +5,7 @@ pub struct Config {
     pub watch: bool,
     pub output: String,
     pub pretty_print: bool,
+    pub gas: bool,
 }
 
 impl Config {
@@ -14,6 +15,7 @@ impl Config {
             watch: false,
             output: String::new(),
             pretty_print: false,
+            gas: false,
         }
     }
 
@@ -29,6 +31,11 @@ impl Config {
 
     pub fn pretty_print(mut self, pretty_print: bool) -> Self {
         self.pretty_print = pretty_print;
+        self
+    }
+
+    pub fn gas(mut self, gas: bool) -> Self {
+        self.gas = gas;
         self
     }
 }

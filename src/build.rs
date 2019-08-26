@@ -21,7 +21,7 @@ pub fn build(config: &Config) -> Result<Vec<Contract>> {
             }
         }
     } else {
-        print_compiled_contracts(&contracts);
+        print_compiled_contracts(&contracts, config.gas);
         if config.output != "" {
             for c in contracts.iter() {
                 c.write_to_dir(&config.output, config.pretty_print)?;
@@ -79,7 +79,7 @@ fn reattach_watcher_file(watcher: &mut RecommendedWatcher, file: impl AsRef<Path
     Ok(())
 }
 
-fn print_compiled_contracts(contracts: &[Contract]) {
+fn print_compiled_contracts(contracts: &[Contract], gas_estimates: bool) {
     let local = Local::now();
     for c in contracts.iter() {
         println!("[{}] {}{} compiled{}",
@@ -88,5 +88,8 @@ fn print_compiled_contracts(contracts: &[Contract]) {
             c.name,
             color::Fg(color::Reset)
         );
+        if gas_estimates {
+            println!("{}", c.gas_estimates_to_string());
+        }
     }
 }

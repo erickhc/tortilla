@@ -29,6 +29,10 @@ fn main() -> Result<()> {
              .short("p")
              .long("pretty")
              .help("Sets the JSON to be pretty printed"))
+        .arg(Arg::with_name("GAS")
+             .short("g")
+             .long("gas")
+             .help("Prints the gas estimates of the methods"))
         .get_matches();
 
     let inputs = filter_paths(matches.values_of_lossy("INPUTS").unwrap());
@@ -39,11 +43,13 @@ fn main() -> Result<()> {
     let should_watch = matches.is_present("WATCH");
     let output = matches.value_of("OUTPUT").unwrap_or("");
     let pretty_print = matches.is_present("PRETTY_PRINT");
+    let gas = matches.is_present("GAS");
 
     let config = Config::new(&inputs)
         .watch(should_watch)
         .output(output)
-        .pretty_print(pretty_print);
+        .pretty_print(pretty_print)
+        .gas(gas);
 
     if config.watch {
         watch(&config).unwrap();
