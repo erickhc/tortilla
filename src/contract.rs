@@ -13,7 +13,7 @@ pub struct Contract {
     pub name: String,
     pub abi: Vec<Abi>,
     pub bin: String,
-    pub gas_estimates: Option<HashMap<String, String>>,
+    pub gas_estimates: Option<GasEstimates>,
     pub networks: HashMap<String, Network>,
 }
 
@@ -31,6 +31,13 @@ impl Network {
 }
 
 pub type Address = H160;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GasEstimates {
+    pub construction: String,
+    pub external: HashMap<String, String>,
+    pub internal: HashMap<String, String>,
+}
 
 impl Contract {
     pub fn new(name: String, abi: Vec<Abi>, bin: String) -> Self {
@@ -117,8 +124,9 @@ impl Contract {
         let mut output = Vec::new();
 
         if let Some(gas) = &self.gas_estimates {
-            let biggest = gas.keys()
-                .fold(0, |acc, x| std::cmp::max(acc, x.len()));
+            let biggest = gas.external.keys()
+                .chain(gas.internal.keys())
+                .fold("construction".len(), |acc, x| std::cmp::max(acc, x.len()));
 
             macro_rules! pad {
                 ($expr:expr) => {
@@ -126,14 +134,22 @@ impl Contract {
                 };
             }
 
-            output.push(format!("{}construction: {}", pad!("construction"), gas["construction"]));
+            output.push(format!("{}construction: {}", pad!("construction"), gas.construction));
 
-            for (name, value) in gas.iter() {
-                if name == "construction" {
-                    continue;
+            if gas.external.keys().len() > 0 {
+                output.push(format!("{}external:", pad!("external")));
+
+                for (name, value) in gas.external.iter() {
+                    output.push(format!("{}{}: {}", pad!(name), name, value));
                 }
+            }
 
-                output.push(format!("{}{}: {}", pad!(name), name, value));
+            if gas.internal.keys().len() > 0 {
+                output.push(format!("{}internal:", pad!("internal")));
+
+                for (name, value) in gas.internal.iter() {
+                    output.push(format!("{}{}: {}", pad!(name), name, value));
+                }
             }
         }
 

@@ -1,4 +1,5 @@
 use crate::abi::*;
+use crate::contract::GasEstimates;
 use std::collections::HashMap;
 use std::str::Lines;
 use std::iter::Peekable;
@@ -10,7 +11,7 @@ pub struct SolcContract {
     pub name: String,
     pub abi: Vec<Abi>,
     pub bin: String,
-    pub gas_estimates: HashMap<String, String>,
+    pub gas_estimates: GasEstimates,
 }
 
 pub enum CompilerInput<'a> {
@@ -89,9 +90,7 @@ fn parse_name(line: &str) -> String {
         .expect("Solc changed the output format"))
 }
 
-fn parse_gas_estimates(lines: &mut Peekable<Lines>) -> HashMap<String, String> {
-    let mut gas_estimates = HashMap::new();
-
+fn parse_gas_estimates(lines: &mut Peekable<Lines>) -> GasEstimates {
     assert_line!(lines, "construction:");
 
     let construction = next_line!(lines)
@@ -100,7 +99,10 @@ fn parse_gas_estimates(lines: &mut Peekable<Lines>) -> HashMap<String, String> {
         .expect("Solc changed the output format")
         .trim();
 
-    gas_estimates.insert("construction".to_owned(), construction.to_owned());
+    let mut external = HashMap::new();
+    let mut internal = HashMap::new();
+
+    let mut current = &mut external;
 
     assert_line!(lines, "external:");
 
@@ -114,7 +116,13 @@ fn parse_gas_estimates(lines: &mut Peekable<Lines>) -> HashMap<String, String> {
             }
         }
 
-        let mut line = next_line!(lines).trim().split(':');
+        let line = next_line!(lines).trim();
+        if line == "internal:" {
+            current = &mut internal;
+            continue;
+        }
+
+        let mut line = line.split(':');
         let name = line.next()
             .expect("Solc changed the output format")
             .split('(')
@@ -125,10 +133,14 @@ fn parse_gas_estimates(lines: &mut Peekable<Lines>) -> HashMap<String, String> {
             .expect("Solc changed the output format")
             .trim();
 
-        gas_estimates.insert(name.to_owned(), value.to_owned());
+        current.insert(name.to_owned(), value.to_owned());
     }
 
-    gas_estimates
+    GasEstimates {
+        construction: construction.to_owned(),
+        external,
+        internal
+    }
 }
 
 pub fn call_compiler(contract: CompilerInput, args: &[&str]) -> Result<String> {
