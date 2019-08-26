@@ -138,17 +138,21 @@ impl Contract {
 
             if gas.external.keys().len() > 0 {
                 output.push(format!("{}external:", pad!("external")));
+                let mut sorted_keys = gas.external.keys().collect::<Vec<&String>>();
+                sorted_keys.sort();
 
-                for (name, value) in gas.external.iter() {
-                    output.push(format!("{}{}: {}", pad!(name), name, value));
+                for &name in sorted_keys.iter() {
+                    output.push(format!("{}{}: {}", pad!(name), name, gas.external.get(name).unwrap()));
                 }
             }
 
             if gas.internal.keys().len() > 0 {
                 output.push(format!("{}internal:", pad!("internal")));
+                let mut sorted_keys = gas.internal.keys().collect::<Vec<&String>>();
+                sorted_keys.sort();
 
-                for (name, value) in gas.internal.iter() {
-                    output.push(format!("{}{}: {}", pad!(name), name, value));
+                for &name in sorted_keys.iter() {
+                    output.push(format!("{}{}: {}", pad!(name), name, gas.internal.get(name).unwrap()));
                 }
             }
         }
