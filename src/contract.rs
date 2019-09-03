@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use ethereum_types::H160;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Contract {
     pub name: String,
     pub abi: Vec<Abi>,
@@ -17,7 +17,7 @@ pub struct Contract {
     pub networks: HashMap<String, Network>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Network {
     address: Address,
 }
@@ -32,7 +32,7 @@ impl Network {
 
 pub type Address = H160;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct GasEstimates {
     pub construction: String,
     pub external: HashMap<String, String>,
@@ -159,6 +159,10 @@ impl Contract {
 
         output.join("\n")
     }
+
+    pub fn from_json(json: &str) -> Result<Self, serde_json::error::Error> {
+        serde_json::from_str(json)
+    }
 }
 
 impl fmt::Display for Contract {
@@ -226,5 +230,17 @@ mod tests {
             contract.get_address("1566487350707"),
             Some("e78a0f7e598cc8b0bb87894b0f60dd2a88d6a8ab".parse().unwrap())
         );
+    }
+
+    #[test]
+    fn test_from_json() {
+        let mut contracts = compiler::compile_file("tests/contracts/Migrations.sol").unwrap();
+        let contract = contracts.remove(0);
+
+        let json = contract.pretty_print();
+
+        let from_json = Contract::from_json(&json).expect("Couldn't parse contract");
+
+        assert_eq!(contract, from_json);
     }
 }

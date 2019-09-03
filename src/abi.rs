@@ -1,3 +1,10 @@
+//! ABI interpretation of the contract, implements JSON (de)serialization.
+//!
+//! Example:
+//! ```
+//! let a = "";
+//! ```
+
 use serde::{Serialize, Deserialize};
 use std::str::FromStr;
 use std::fmt;
