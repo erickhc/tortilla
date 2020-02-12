@@ -39,7 +39,7 @@ pub fn parse_output(output: &str) -> Vec<SolcContract> {
     let mut contracts = Vec::new();
     let mut lines = output.lines().peekable();
 
-    // The output sa of solc 0.5.10 is
+    // The output sa of solc 0.6.2 is
     //
     // _Blank line_
     // ======= contract_path:ContractName =======

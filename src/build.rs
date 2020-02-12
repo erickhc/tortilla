@@ -9,7 +9,7 @@ use std::io::{Result, stdout, Write};
 use std::path::Path;
 use chrono::prelude::*;
 
-pub fn build(config: &Config) -> Result<Vec<Contract>> {
+pub fn build(config: &Config) -> Result<()> {
     let contracts = compiler::compile_paths(&config.inputs)?;
 
     if config.output == "-" {
@@ -29,13 +29,12 @@ pub fn build(config: &Config) -> Result<Vec<Contract>> {
         }
     }
 
-    Ok(contracts)
+    Ok(())
 }
 
 pub fn watch(config: &Config) -> notify::Result<()> {
     let _altscreen = screen::AlternateScreen::from(stdout());
-    restart_screen().unwrap();
-    build(config).unwrap();
+    build_to_stderr(config, true);
 
     let inputs = &config.inputs;
     let (tx, rx) = channel();
@@ -50,14 +49,14 @@ pub fn watch(config: &Config) -> notify::Result<()> {
         match rx.recv() {
             Ok(DebouncedEvent::Create(_))
             | Ok(DebouncedEvent::Write(_)) => {
-                restart_screen().unwrap();
-                build(config).unwrap();
+                build_to_stderr(config, true);
             },
             Ok(DebouncedEvent::NoticeRemove(path)) => {
                 if inputs.iter().any(|x| path.ends_with(x)) {
                     if let Err(err) = reattach_watcher_file(&mut watcher, &path) {
                         eprintln!("{}{:?}{}", color::Fg(color::Red), err, color::Fg(color::Reset));
                     }
+                    build_to_stderr(config, true);
                 }
             },
             Err(e) => eprintln!("{}{:?}{}", color::Fg(color::Red), e, color::Fg(color::Reset)),
@@ -73,10 +72,14 @@ fn restart_screen() -> Result<()> {
     Ok(())
 }
 
-fn reattach_watcher_file(watcher: &mut RecommendedWatcher, file: impl AsRef<Path>) -> notify::Result<()> {
-    watcher.unwatch(file.as_ref())?;
+fn reattach_watcher_file(mut watcher: &mut RecommendedWatcher, file: impl AsRef<Path>) -> notify::Result<()> {
+    try_unwatch_file(&mut watcher, file.as_ref());
     watcher.watch(file.as_ref(), RecursiveMode::Recursive)?;
     Ok(())
+}
+
+fn try_unwatch_file(watcher: &mut RecommendedWatcher, file: impl AsRef<Path>) -> bool {
+    watcher.unwatch(file.as_ref()).is_ok()
 }
 
 fn print_compiled_contracts(contracts: &[Contract], gas_estimates: bool) {
@@ -91,5 +94,14 @@ fn print_compiled_contracts(contracts: &[Contract], gas_estimates: bool) {
         if gas_estimates {
             println!("{}", c.gas_estimates_to_string());
         }
+    }
+}
+
+pub fn build_to_stderr(config: &Config, clear_screen: bool) {
+    if clear_screen {
+        restart_screen().unwrap();
+    }
+    if let Err(e) = build(&config) {
+        eprintln!("{}{}", color::Fg(color::Red), e);
     }
 }

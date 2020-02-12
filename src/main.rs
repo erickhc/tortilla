@@ -4,7 +4,7 @@ mod config;
 use clap::{Arg, App};
 use std::path::Path;
 use config::Config;
-use build::{build, watch};
+use build::{watch, build_to_stderr};
 use std::io::Result;
 
 fn main() -> Result<()> {
@@ -54,7 +54,7 @@ fn main() -> Result<()> {
     if config.watch {
         watch(&config).unwrap();
     } else {
-        build(&config)?;
+        build_to_stderr(&config, false);
     }
 
     Ok(())
