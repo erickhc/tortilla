@@ -183,7 +183,7 @@ fn call_compiler_path(path: impl AsRef<Path>, args: &[&str]) -> Result<String> {
         .output()
         .expect("Failed to execute solc");
 
-    if solc.stderr.len() > 0 {
+    if !solc.stderr.is_empty() {
         eprintln!("{}", String::from_utf8_lossy(&solc.stderr));
     }
 

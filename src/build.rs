@@ -51,7 +51,7 @@ pub fn watch(config: &Config) -> notify::Result<()> {
             Ok(DebouncedEvent::Create(_))
             | Ok(DebouncedEvent::Write(_)) => {
                 restart_screen().unwrap();
-                &build(config).unwrap();
+                build(config).unwrap();
             },
             Ok(DebouncedEvent::NoticeRemove(path)) => {
                 if inputs.iter().any(|x| path.ends_with(x)) {

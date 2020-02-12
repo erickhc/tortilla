@@ -36,7 +36,7 @@ fn main() -> Result<()> {
         .get_matches();
 
     let inputs = filter_paths(matches.values_of_lossy("INPUTS").unwrap());
-    if inputs.len() == 0 {
+    if inputs.is_empty() {
         std::process::exit(1);
     }
 

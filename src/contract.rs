@@ -107,7 +107,7 @@ impl Contract {
     }
 
     pub fn get_address(&self, net_version: &str) -> Option<Address> {
-        self.networks.get(net_version).and_then(|n| Some(n.address))
+        self.networks.get(net_version).map(|n| n.address)
     }
 
     pub fn from_solc_contract(c: SolcContract) -> Self {

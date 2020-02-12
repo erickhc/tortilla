@@ -9,9 +9,9 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new(inputs: &Vec<impl AsRef<Path>>) -> Self {
+    pub fn new(inputs: &[impl AsRef<Path>]) -> Self {
         Self {
-            inputs: inputs.into_iter().map(|i| i.as_ref().to_owned()).collect(),
+            inputs: inputs.iter().map(|i| i.as_ref().to_owned()).collect(),
             watch: false,
             output: String::new(),
             pretty_print: false,

@@ -14,50 +14,57 @@ use std::fmt;
 pub enum Abi {
     Function(Function),
     Constructor(Constructor),
+    Fallback(Fallback),
     Event(Event),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct Function {
-    pub constant: bool,
-    pub inputs: Vec<Variable>,
-    pub name: String,
-    pub outputs: Vec<Variable>,
-    pub payable: bool,
-    pub stateMutability: String,
     pub r#type: String,
+    pub name: String,
+    pub inputs: Vec<Variable>,
+    pub outputs: Vec<Variable>,
+    pub stateMutability: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct Constructor {
-    pub inputs: Vec<Variable>,
-    pub payable: bool,
-    pub stateMutability: String,
     pub r#type: String,
+    pub inputs: Vec<Variable>,
+    pub stateMutability: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[allow(non_snake_case)]
+pub struct Fallback {
+    pub r#type: String,
+    pub stateMutability: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct Event {
-    pub anonymous: bool,
-    pub inputs: Vec<EventVariable>,
+    pub r#type: String,
     pub name: String,
-    r#type: String,
+    pub inputs: Vec<EventVariable>,
+    pub anonymous: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Variable {
     pub name: String,
     pub r#type: String,
+    pub components: Option<Vec<Variable>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EventVariable {
-    pub indexed: bool,
     pub name: String,
     pub r#type: String,
+    pub components: Option<Vec<EventVariable>>,
+    pub indexed: bool,
 }
 
 impl Abi {
@@ -89,7 +96,6 @@ mod tests {
     fn test_function_one_input_no_output_from_str() {
         let input = r#"
             {
-              "constant": false,
               "inputs": [
                 {
                   "name": "new_address",
@@ -98,7 +104,6 @@ mod tests {
               ],
               "name": "upgrade",
               "outputs": [],
-              "payable": false,
               "stateMutability": "nonpayable",
               "type": "function"
             }"#;
@@ -108,56 +113,51 @@ mod tests {
 
         match abi {
             Abi::Function(func) => {
-                assert_eq!(func.constant, false);
                 assert_eq!(func.inputs.len(), 1);
                 assert_eq!(func.inputs[0].name, "new_address");
                 assert_eq!(func.inputs[0].r#type, "address");
+                assert_eq!(func.inputs[0].components, None);
                 assert_eq!(func.name, "upgrade");
                 assert_eq!(func.outputs.len(), 0);
-                assert_eq!(func.payable, false);
                 assert_eq!(func.stateMutability, "nonpayable");
                 assert_eq!(func.r#type, "function");
             },
-            Abi::Constructor(_) => { unreachable!(); },
-            Abi::Event(_) => { unreachable!() },
+            _ => unreachable!(),
         }
     }
 
     #[test]
     fn test_public_attribute() {
         let input = r#"
+        {
+          "inputs":[
+          ],
+          "name":"last_completed_migration",
+          "outputs":[
             {
-              "constant": true,
-              "inputs": [],
-              "name": "last_completed_migration",
-              "outputs": [
-                {
-                  "name": "",
-                  "type": "uint256"
-                }
-              ],
-              "payable": false,
-              "stateMutability": "view",
-              "type": "function"
-            }"#;
+              "internalType":"uint256",
+              "name":"",
+              "type":"uint256"
+            }
+          ],
+          "stateMutability":"view",
+          "type":"function"
+        }"#;
 
         let abi = Abi::from_str(&input)
             .expect("Couldn't parse the input");
 
         match abi {
             Abi::Function(func) => {
-                assert_eq!(func.constant, true);
                 assert_eq!(func.inputs.len(), 0);
                 assert_eq!(func.name, "last_completed_migration");
                 assert_eq!(func.outputs.len(), 1);
                 assert_eq!(func.outputs[0].name, "");
                 assert_eq!(func.outputs[0].r#type, "uint256");
-                assert_eq!(func.payable, false);
                 assert_eq!(func.stateMutability, "view");
                 assert_eq!(func.r#type, "function");
             },
-            Abi::Constructor(_) => { unreachable!(); },
-            Abi::Event(_) => { unreachable!() },
+            _ => unreachable!(),
         }
     }
 
@@ -166,7 +166,6 @@ mod tests {
         let input = r#"
             {
               "inputs": [],
-              "payable": false,
               "stateMutability": "nonpayable",
               "type": "constructor"
             }"#;
@@ -175,14 +174,12 @@ mod tests {
             .expect("Couldn't parse the input");
 
         match abi {
-            Abi::Function(_) => { unreachable!(); },
             Abi::Constructor(constructor) => {
                 assert_eq!(constructor.inputs.len(), 0);
-                assert_eq!(constructor.payable, false);
                 assert_eq!(constructor.stateMutability, "nonpayable");
                 assert_eq!(constructor.r#type, "constructor");
             },
-            Abi::Event(_) => { unreachable!() },
+            _ => unreachable!(),
         }
     }
 
@@ -196,7 +193,6 @@ mod tests {
                   "type": "bytes32[]"
                 }
               ],
-              "payable": false,
               "stateMutability": "nonpayable",
               "type": "constructor"
             } "#;
@@ -205,16 +201,14 @@ mod tests {
             .expect("Couldn't parse the input");
 
         match abi {
-            Abi::Function(_) => { unreachable!(); },
             Abi::Constructor(constructor) => {
                 assert_eq!(constructor.inputs.len(), 1);
                 assert_eq!(constructor.inputs[0].name, "proposalNames");
                 assert_eq!(constructor.inputs[0].r#type, "bytes32[]");
-                assert_eq!(constructor.payable, false);
                 assert_eq!(constructor.stateMutability, "nonpayable");
                 assert_eq!(constructor.r#type, "constructor");
             },
-            Abi::Event(_) => { unreachable!() },
+            _ => unreachable!(),
         }
     }
 
@@ -243,8 +237,6 @@ mod tests {
             .expect("Couldn't parse the input");
 
         match abi {
-            Abi::Function(_) => { unreachable!(); },
-            Abi::Constructor(_) => { unreachable!(); },
             Abi::Event(event) => {
                 assert_eq!(event.anonymous, false);
                 assert_eq!(event.inputs.len(), 2);
@@ -257,6 +249,7 @@ mod tests {
                 assert_eq!(event.name, "AuctionEnded");
                 assert_eq!(event.r#type, "event");
             },
+            _ => unreachable!(),
         }
     }
 
@@ -288,8 +281,6 @@ mod tests {
         let abi = &abis[0];
 
         match abi {
-            Abi::Function(_) => { unreachable!(); },
-            Abi::Constructor(_) => { unreachable!(); },
             Abi::Event(event) => {
                 assert_eq!(event.anonymous, false);
                 assert_eq!(event.inputs.len(), 2);
@@ -302,6 +293,7 @@ mod tests {
                 assert_eq!(event.name, "AuctionEnded");
                 assert_eq!(event.r#type, "event");
             },
+            _ => unreachable!(),
         }
     }
 }
